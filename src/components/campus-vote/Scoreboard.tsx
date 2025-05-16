@@ -63,7 +63,7 @@ export function Scoreboard({ misRankings, csRankings }: ScoreboardProps) {
       </CardHeader>
       <CardContent>
         <Tabs defaultValue="mis">
-          <TabsList className="grid w-full grid-cols-1 sm:grid-cols-3 mb-4">
+          <TabsList className="grid w-full grid-cols-3 mb-4">
             <TabsTrigger value="mis" className="flex items-center gap-2">
               <Users className="h-4 w-4" /> MIS Girls
             </TabsTrigger>
@@ -88,3 +88,4 @@ export function Scoreboard({ misRankings, csRankings }: ScoreboardProps) {
     </Card>
   );
 }
+
