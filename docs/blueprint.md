@@ -1,4 +1,4 @@
-# **App Name**: CampusVote
+# **App Name**: Rankings
 
 ## Core Features:
 

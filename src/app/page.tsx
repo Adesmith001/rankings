@@ -3,9 +3,9 @@
 
 import type * as React from "react";
 import { useState, useEffect, useCallback } from "react";
-import { NomineeInputForm } from "@/components/campus-vote/NomineeInputForm";
-import { RankingCard } from "@/components/campus-vote/RankingCard";
-import { Scoreboard } from "@/components/campus-vote/Scoreboard";
+import { NomineeInputForm } from "@/components/rankings/NomineeInputForm";
+import { RankingCard } from "@/components/rankings/RankingCard";
+import { Scoreboard } from "@/components/rankings/Scoreboard";
 import type { Nominee, CSNominee } from "@/types/campus-vote";
 import { hasVotedCookie, setVotedCookie } from "@/lib/cookies";
 import { useToast } from "@/hooks/use-toast";
@@ -137,7 +137,7 @@ export default function CampusVotePage() {
     if (!selectedVoterDeptForCs) {
       toast({
         title: "Selection Required",
-        description: "Please select your department affiliation before voting for a CS Department Girl.",
+        description: "Please select your department affiliation before voting for a CIS Department Girl.",
         variant: "destructive",
       });
       return;
@@ -150,8 +150,8 @@ export default function CampusVotePage() {
   return (
     <div className="flex flex-col items-center min-h-screen p-4 sm:p-8 bg-background text-foreground">
       <header className="mb-10 text-center">
-        <h1 className="text-4xl sm:text-5xl font-bold text-primary tracking-tight">CampusVote</h1>
-        <p className="text-muted-foreground mt-2 text-lg">Cast your vote and see who's leading the polls!</p>
+        <h1 className="text-4xl sm:text-5xl font-bold text-primary tracking-tight">Rankings</h1>
+        <p className="text-muted-foreground mt-2 text-md">Cast your vote and see who's leading the polls!</p>
       </header>
 
       <main className="w-full max-w-5xl">
@@ -172,8 +172,8 @@ export default function CampusVotePage() {
           </RankingCard>
 
           <RankingCard 
-            title="CS Department Girls Ranking" 
-            description="Select your department affiliation, then vote for a CS Department girl."
+            title="CIS Department Girls Ranking" 
+            description="Select your department affiliation, then vote for a CIS Department girl."
             icon={<Users2 className="h-8 w-8" />}
           >
             <div className="mb-4">
@@ -201,7 +201,7 @@ export default function CampusVotePage() {
               onSubmitVote={handleVoteCs}
               hasVoted={hasVotedCs}
               isLoading={isLoadingCs}
-              placeholderText="Enter CS girl's name"
+              placeholderText="Enter CIS girl's name"
               disabled={!selectedVoterDeptForCs && !hasVotedCs} // Disable form if no affiliation selected and not yet voted
             />
           </RankingCard>
@@ -211,8 +211,8 @@ export default function CampusVotePage() {
       </main>
 
       <footer className="mt-12 text-center text-sm text-muted-foreground">
-        <p>&copy; {new Date().getFullYear()} CampusVote. All rights reserved.</p>
-        <p>Powered by Next.js & Firebase Studio</p>
+        <p>&copy; {new Date().getFullYear()} Rankings. All rights reserved.</p>
+        <p>Should be fun, lol.</p>
       </footer>
     </div>
   );
