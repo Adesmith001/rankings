@@ -1,3 +1,4 @@
+
 "use client";
 
 import type * as React from "react";
@@ -17,12 +18,13 @@ const formSchema = z.object({
 type NomineeInputFormValues = z.infer<typeof formSchema>;
 
 interface NomineeInputFormProps {
-  categoryKey: string; // Used for cookie and potentially unique form IDs if needed
-  categoryName: string; // Displayed in UI, e.g., "MIS Girl"
+  categoryKey: string; 
+  categoryName: string; 
   onSubmitVote: (name: string) => Promise<void>;
   hasVoted: boolean;
   isLoading: boolean;
   placeholderText?: string;
+  disabled?: boolean; // Added disabled prop
 }
 
 export function NomineeInputForm({
@@ -31,6 +33,7 @@ export function NomineeInputForm({
   hasVoted,
   isLoading,
   placeholderText = "Enter nominee's name",
+  disabled = false, // Default to false
 }: NomineeInputFormProps) {
   const form = useForm<NomineeInputFormValues>({
     resolver: zodResolver(formSchema),
@@ -40,7 +43,7 @@ export function NomineeInputForm({
   });
 
   const handleSubmit: SubmitHandler<NomineeInputFormValues> = async (data) => {
-    if (hasVoted || isLoading) return;
+    if (hasVoted || isLoading || disabled) return;
     await onSubmitVote(data.name);
     form.reset(); 
   };
@@ -67,13 +70,13 @@ export function NomineeInputForm({
             <FormItem>
               <FormLabel>Nominee Name for {categoryName}</FormLabel>
               <FormControl>
-                <Input placeholder={placeholderText} {...field} disabled={isLoading} />
+                <Input placeholder={placeholderText} {...field} disabled={isLoading || disabled} />
               </FormControl>
               <FormMessage />
             </FormItem>
           )}
         />
-        <Button type="submit" disabled={isLoading} className="w-full">
+        <Button type="submit" disabled={isLoading || disabled} className="w-full">
           {isLoading ? (
             <div className="flex items-center">
               <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
@@ -92,3 +95,4 @@ export function NomineeInputForm({
     </Form>
   );
 }
+

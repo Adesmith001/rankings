@@ -1,3 +1,4 @@
+
 "use client";
 
 import type * as React from "react";
@@ -10,24 +11,16 @@ import { hasVotedCookie, setVotedCookie } from "@/lib/cookies";
 import { useToast } from "@/hooks/use-toast";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
-import { User, Users2, Puzzle } from "lucide-react";
+import { User, Users2 } from "lucide-react";
 
-// Mock data - in a real app, this would come from Firebase
-const initialMisGirlsData: Nominee[] = [
-  { id: "mis1", name: "Alice Wonderland", votes: 10 },
-  { id: "mis2", name: "Bella Swan", votes: 8 },
-];
-
-const initialCsGirlsData: CSNominee[] = [
-  { id: "cs1", name: "Carol Danvers", votes: 12 },
-  { id: "cs2", name: "Diana Prince", votes: 15 },
-];
+const MIS_RANKINGS_STORAGE_KEY = "campusVote_misRankings";
+const CS_RANKINGS_STORAGE_KEY = "campusVote_csRankings";
 
 export default function CampusVotePage() {
   const { toast } = useToast();
 
-  const [misRankings, setMisRankings] = useState<Nominee[]>(initialMisGirlsData);
-  const [csRankings, setCsRankings] = useState<CSNominee[]>(initialCsGirlsData);
+  const [misRankings, setMisRankings] = useState<Nominee[]>([]);
+  const [csRankings, setCsRankings] = useState<CSNominee[]>([]);
 
   const [hasVotedMis, setHasVotedMis] = useState(false);
   const [hasVotedCs, setHasVotedCs] = useState(false);
@@ -35,19 +28,69 @@ export default function CampusVotePage() {
   const [isLoadingMis, setIsLoadingMis] = useState(false);
   const [isLoadingCs, setIsLoadingCs] = useState(false);
 
-  // For CS Department Girls card, voter selects their department affiliation
   const [selectedVoterDeptForCs, setSelectedVoterDeptForCs] = useState<'MIS' | 'CS' | undefined>(undefined);
 
+  // Load data from localStorage and check voting cookies on mount
   useEffect(() => {
+    // Load MIS Rankings from localStorage
+    try {
+      const storedMisData = localStorage.getItem(MIS_RANKINGS_STORAGE_KEY);
+      if (storedMisData) {
+        const parsedData = JSON.parse(storedMisData) as Nominee[];
+        if (Array.isArray(parsedData) && parsedData.every(item => typeof item.id === 'string' && typeof item.name === 'string' && typeof item.votes === 'number')) {
+          setMisRankings(parsedData);
+        } else if (parsedData !== null && parsedData !== undefined) { // Handles cases where "null" or "undefined" string was stored
+           console.warn("MIS rankings data in localStorage is malformed. Resetting.");
+           localStorage.removeItem(MIS_RANKINGS_STORAGE_KEY);
+        }
+      }
+    } catch (error) {
+      console.error("Failed to load or parse MIS rankings from localStorage:", error);
+    }
+
+    // Load CS Rankings from localStorage
+    try {
+      const storedCsData = localStorage.getItem(CS_RANKINGS_STORAGE_KEY);
+      if (storedCsData) {
+        const parsedData = JSON.parse(storedCsData) as CSNominee[];
+        if (Array.isArray(parsedData) && parsedData.every(item => typeof item.id === 'string' && typeof item.name === 'string' && typeof item.votes === 'number')) {
+          setCsRankings(parsedData);
+        } else if (parsedData !== null && parsedData !== undefined) {
+           console.warn("CS rankings data in localStorage is malformed. Resetting.");
+           localStorage.removeItem(CS_RANKINGS_STORAGE_KEY);
+        }
+      }
+    } catch (error) {
+      console.error("Failed to load or parse CS rankings from localStorage:", error);
+    }
+
     setHasVotedMis(hasVotedCookie("mis_girls"));
     setHasVotedCs(hasVotedCookie("cs_department_girls"));
   }, []);
+
+  // Save MIS rankings to localStorage whenever they change
+  useEffect(() => {
+    try {
+      localStorage.setItem(MIS_RANKINGS_STORAGE_KEY, JSON.stringify(misRankings));
+    } catch (error) {
+      console.error("Failed to save MIS rankings to localStorage:", error);
+    }
+  }, [misRankings]);
+
+  // Save CS rankings to localStorage whenever they change
+  useEffect(() => {
+    try {
+      localStorage.setItem(CS_RANKINGS_STORAGE_KEY, JSON.stringify(csRankings));
+    } catch (error) {
+      console.error("Failed to save CS rankings to localStorage:", error);
+    }
+  }, [csRankings]);
 
   // Simulate API call and update state
   const generalSubmitVote = useCallback(async (
     categoryKey: string,
     nomineeName: string,
-    currentRankings: Nominee[],
+    currentRankings: Nominee[], // This parameter is not strictly needed if setRankings directly uses its callback form
     setRankings: React.Dispatch<React.SetStateAction<Nominee[]>>,
     setHasVotedState: React.Dispatch<React.SetStateAction<boolean>>,
     setIsLoadingState: React.Dispatch<React.SetStateAction<boolean>>,
@@ -69,7 +112,6 @@ export default function CampusVotePage() {
         };
         return updatedRankings;
       } else {
-        // Add new nominee if they don't exist. Generate a simple ID.
         const newId = `${categoryKey}-${nomineeName.toLowerCase().replace(/\s+/g, '-')}-${Date.now()}`;
         return [...prevRankings, { id: newId, name: nomineeName, votes: 1 }];
       }
@@ -87,6 +129,7 @@ export default function CampusVotePage() {
 
 
   const handleVoteMis = useCallback(async (name: string) => {
+    // Pass misRankings to satisfy generalSubmitVote, though it uses the callback form of setMisRankings
     await generalSubmitVote("mis_girls", name, misRankings, setMisRankings, setHasVotedMis, setIsLoadingMis, "MIS Girls");
   }, [generalSubmitVote, misRankings]);
 
@@ -99,6 +142,7 @@ export default function CampusVotePage() {
       });
       return;
     }
+    // Pass csRankings similarly
     await generalSubmitVote("cs_department_girls", name, csRankings, setCsRankings, setHasVotedCs, setIsLoadingCs, "CS Department Girls", selectedVoterDeptForCs);
   }, [generalSubmitVote, csRankings, selectedVoterDeptForCs, toast]);
 
@@ -106,7 +150,7 @@ export default function CampusVotePage() {
   return (
     <div className="flex flex-col items-center min-h-screen p-4 sm:p-8 bg-background text-foreground">
       <header className="mb-10 text-center">
-        <h1 className="text-5xl font-bold text-primary tracking-tight">CampusVote</h1>
+        <h1 className="text-4xl sm:text-5xl font-bold text-primary tracking-tight">CampusVote</h1>
         <p className="text-muted-foreground mt-2 text-lg">Cast your vote and see who's leading the polls!</p>
       </header>
 
@@ -149,7 +193,7 @@ export default function CampusVotePage() {
                   <Label htmlFor="voter-dept-cs">CS</Label>
                 </div>
               </RadioGroup>
-              {!selectedVoterDeptForCs && <p className="text-xs text-destructive mt-1">Please select an affiliation.</p>}
+              {!selectedVoterDeptForCs && !(hasVotedCs || isLoadingCs) && <p className="text-xs text-destructive mt-1">Please select an affiliation to vote.</p>}
             </div>
             <NomineeInputForm
               categoryKey="cs_department_girls"
@@ -158,6 +202,7 @@ export default function CampusVotePage() {
               hasVoted={hasVotedCs}
               isLoading={isLoadingCs}
               placeholderText="Enter CS girl's name"
+              disabled={!selectedVoterDeptForCs && !hasVotedCs} // Disable form if no affiliation selected and not yet voted
             />
           </RankingCard>
         </div>
@@ -172,3 +217,4 @@ export default function CampusVotePage() {
     </div>
   );
 }
+
