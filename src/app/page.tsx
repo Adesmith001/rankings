@@ -10,11 +10,11 @@ import { CourseInputForm } from "@/components/rankings/CourseInputForm";
 import type { Nominee, CourseRankings } from "@/types/campus-vote";
 import { hasVotedCookie, setVotedCookie, getCookie as getAppCookie, setCookie as setAppCookie } from "@/lib/cookies";
 import { useToast } from "@/hooks/use-toast";
-import { User, Users2, GraduationCap, University } from "lucide-react";
+import { GraduationCap, University } from "lucide-react";
+import { firestore } from "@/lib/firebase";
+import { collection, doc, runTransaction, onSnapshot, query, orderBy } from "firebase/firestore";
 
 const USER_COURSE_STORAGE_KEY = "campusVote_userCourse";
-const COURSE_RANKINGS_STORAGE_KEY = "campusVote_courseRankings";
-const UNIVERSITY_RANKINGS_STORAGE_KEY = "campusVote_universityRankings";
 
 const normalizeName = (name: string): string => {
   return name.trim().toLowerCase().replace(/\s+/g, ' ');
@@ -24,11 +24,14 @@ export default function CampusVotePage() {
   const { toast } = useToast();
 
   const [userCourse, setUserCourse] = useState<string | null>(null);
-  const [showCourseInput, setShowCourseInput] = useState(false);
-  const [isLoadingCourse, setIsLoadingCourse] = useState(false);
+  const [showCourseInput, setShowCourseInput] = useState(true); // Show course input initially
+  const [isLoadingCourseForm, setIsLoadingCourseForm] = useState(false);
 
   const [courseRankings, setCourseRankings] = useState<CourseRankings>({});
   const [universityRankings, setUniversityRankings] = useState<Nominee[]>([]);
+
+  const [isLoadingCourseRankings, setIsLoadingCourseRankings] = useState(true);
+  const [isLoadingUniversityRankings, setIsLoadingUniversityRankings] = useState(true);
 
   const [hasVotedForCourse, setHasVotedForCourse] = useState(false);
   const [hasVotedForUniversity, setHasVotedForUniversity] = useState(false);
@@ -36,141 +39,153 @@ export default function CampusVotePage() {
   const [isLoadingCourseVote, setIsLoadingCourseVote] = useState(false);
   const [isLoadingUniversityVote, setIsLoadingUniversityVote] = useState(false);
 
-  // Load data from localStorage and cookies on mount
+  // Load userCourse from cookie on mount
   useEffect(() => {
     const storedUserCourse = getAppCookie(USER_COURSE_STORAGE_KEY);
     if (storedUserCourse) {
       setUserCourse(storedUserCourse);
       setShowCourseInput(false);
-      setHasVotedForCourse(hasVotedCookie(`course_${storedUserCourse}`));
+      setHasVotedForCourse(hasVotedCookie(`course_${normalizeName(storedUserCourse)}`));
     } else {
       setShowCourseInput(true);
     }
-
-    try {
-      const storedCourseRankings = localStorage.getItem(COURSE_RANKINGS_STORAGE_KEY);
-      if (storedCourseRankings) {
-        setCourseRankings(JSON.parse(storedCourseRankings));
-      }
-    } catch (error) {
-      console.error("Failed to load course rankings from localStorage:", error);
-      localStorage.removeItem(COURSE_RANKINGS_STORAGE_KEY); // Clear corrupted data
-    }
-
-    try {
-      const storedUniversityRankings = localStorage.getItem(UNIVERSITY_RANKINGS_STORAGE_KEY);
-      if (storedUniversityRankings) {
-        setUniversityRankings(JSON.parse(storedUniversityRankings));
-      }
-    } catch (error) {
-      console.error("Failed to load university rankings from localStorage:", error);
-      localStorage.removeItem(UNIVERSITY_RANKINGS_STORAGE_KEY); // Clear corrupted data
-    }
-    
     setHasVotedForUniversity(hasVotedCookie("university_overall"));
   }, []);
 
-  // Save courseRankings to localStorage
+  // Listener for University Rankings
   useEffect(() => {
-    if (Object.keys(courseRankings).length > 0) {
-     try {
-        localStorage.setItem(COURSE_RANKINGS_STORAGE_KEY, JSON.stringify(courseRankings));
-      } catch (error) {
-        console.error("Failed to save course rankings to localStorage:", error);
-      }
-    }
-  }, [courseRankings]);
+    setIsLoadingUniversityRankings(true);
+    const universityNomineesColRef = collection(firestore, "rankings", "university_overall", "nominees");
+    const q = query(universityNomineesColRef, orderBy("votes", "desc"));
 
-  // Save universityRankings to localStorage
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const rankings: Nominee[] = [];
+      snapshot.forEach((doc) => {
+        rankings.push({ id: doc.id, ...doc.data() } as Nominee);
+      });
+      setUniversityRankings(rankings);
+      setIsLoadingUniversityRankings(false);
+    }, (error) => {
+      console.error("Error fetching university rankings:", error);
+      toast({ title: "Error", description: "Could not load university rankings.", variant: "destructive" });
+      setIsLoadingUniversityRankings(false);
+    });
+
+    return () => unsubscribe();
+  }, [toast]);
+
+  // Listener for Course-Specific Rankings
   useEffect(() => {
-    if (universityRankings.length > 0 || localStorage.getItem(UNIVERSITY_RANKINGS_STORAGE_KEY)) { // Save even if empty to clear previous data if needed
-      try {
-        localStorage.setItem(UNIVERSITY_RANKINGS_STORAGE_KEY, JSON.stringify(universityRankings));
-      } catch (error) {
-        console.error("Failed to save university rankings to localStorage:", error);
-      }
+    if (!userCourse) {
+      setCourseRankings(prev => ({ ...prev, [userCourse || '']: [] })); // Clear specific course if userCourse is null
+      setIsLoadingCourseRankings(false);
+      return;
     }
-  }, [universityRankings]);
+
+    setIsLoadingCourseRankings(true);
+    const normalizedCourseName = normalizeName(userCourse);
+    const courseNomineesColRef = collection(firestore, "rankings", `course_${normalizedCourseName}`, "nominees");
+    const q = query(courseNomineesColRef, orderBy("votes", "desc"));
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const rankings: Nominee[] = [];
+      snapshot.forEach((doc) => {
+        rankings.push({ id: doc.id, ...doc.data() } as Nominee);
+      });
+      setCourseRankings(prevRankings => ({
+        ...prevRankings,
+        [userCourse]: rankings, // Store under the original (non-normalized) userCourse for display consistency
+      }));
+      setIsLoadingCourseRankings(false);
+    }, (error) => {
+      console.error(`Error fetching rankings for course ${userCourse}:`, error);
+      toast({ title: "Error", description: `Could not load rankings for ${userCourse}.`, variant: "destructive" });
+      setIsLoadingCourseRankings(false);
+    });
+    
+    return () => unsubscribe();
+  }, [userCourse, toast]);
 
 
   const handleCourseSubmit = (courseName: string) => {
-    setIsLoadingCourse(true);
-    setUserCourse(courseName);
-    setAppCookie(USER_COURSE_STORAGE_KEY, courseName);
+    setIsLoadingCourseForm(true);
+    const trimmedCourseName = courseName.trim();
+    setUserCourse(trimmedCourseName);
+    setAppCookie(USER_COURSE_STORAGE_KEY, trimmedCourseName);
     setShowCourseInput(false);
-    setHasVotedForCourse(hasVotedCookie(`course_${courseName}`)); // Check if already voted for this new course
-    setIsLoadingCourse(false);
+    setHasVotedForCourse(hasVotedCookie(`course_${normalizeName(trimmedCourseName)}`));
+    setIsLoadingCourseForm(false);
     toast({
       title: "Course Saved!",
-      description: `Your course is set to ${courseName}.`,
+      description: `Your course is set to ${trimmedCourseName}.`,
     });
   };
   
   const submitVote = useCallback(async (
     submittedName: string,
-    categoryKey: string // e.g., "course_computer_science" or "university_overall"
+    categoryKey: string 
   ): Promise<void> => {
-    
     const isCourseVote = categoryKey.startsWith("course_");
-    const currentCourseName = isCourseVote ? categoryKey.substring("course_".length) : null;
+    const currentCourseName = isCourseVote && userCourse ? userCourse : null; // Use the state's userCourse for original casing
 
     if (isCourseVote) setIsLoadingCourseVote(true);
     else setIsLoadingUniversityVote(true);
     
-    await new Promise(resolve => setTimeout(resolve, 1000)); // Simulate API delay
-
     const normalizedSubmittedName = normalizeName(submittedName);
-
-    if (isCourseVote && currentCourseName) {
-      setCourseRankings(prevRankings => {
-        const specificCourseRankings = prevRankings[currentCourseName] || [];
-        const existingNomineeIndex = specificCourseRankings.findIndex(n => n.name === normalizedSubmittedName);
-        let updatedSpecificCourseRankings;
-
-        if (existingNomineeIndex > -1) {
-          updatedSpecificCourseRankings = [...specificCourseRankings];
-          updatedSpecificCourseRankings[existingNomineeIndex] = {
-            ...updatedSpecificCourseRankings[existingNomineeIndex],
-            votes: updatedSpecificCourseRankings[existingNomineeIndex].votes + 1,
-          };
-        } else {
-          const newId = `${categoryKey}-${normalizedSubmittedName.replace(/\s+/g, '-')}-${Date.now()}`;
-          updatedSpecificCourseRankings = [
-            ...specificCourseRankings,
-            { id: newId, name: normalizedSubmittedName, originalName: submittedName, votes: 1 }
-          ];
-        }
-        return { ...prevRankings, [currentCourseName]: updatedSpecificCourseRankings };
-      });
-      setVotedCookie(categoryKey);
-      setHasVotedForCourse(true);
-    } else { // University vote
-      setUniversityRankings(prevRankings => {
-        const existingNomineeIndex = prevRankings.findIndex(n => n.name === normalizedSubmittedName);
-        if (existingNomineeIndex > -1) {
-          const updatedRankings = [...prevRankings];
-          updatedRankings[existingNomineeIndex] = {
-            ...updatedRankings[existingNomineeIndex],
-            votes: updatedRankings[existingNomineeIndex].votes + 1,
-          };
-          return updatedRankings;
-        } else {
-          const newId = `${categoryKey}-${normalizedSubmittedName.replace(/\s+/g, '-')}-${Date.now()}`;
-          return [...prevRankings, { id: newId, name: normalizedSubmittedName, originalName: submittedName, votes: 1 }];
-        }
-      });
-      setVotedCookie(categoryKey);
-      setHasVotedForUniversity(true);
+    if (!normalizedSubmittedName) {
+        toast({ title: "Invalid Name", description: "Nominee name cannot be empty.", variant: "destructive"});
+        if (isCourseVote) setIsLoadingCourseVote(false);
+        else setIsLoadingUniversityVote(false);
+        return;
     }
 
-    if (isCourseVote) setIsLoadingCourseVote(false);
-    else setIsLoadingUniversityVote(false);
+    let collectionPathSegments: string[];
+    if (isCourseVote && currentCourseName) {
+        collectionPathSegments = ["rankings", `course_${normalizeName(currentCourseName)}`, "nominees"];
+    } else {
+        collectionPathSegments = ["rankings", "university_overall", "nominees"];
+    }
+    
+    const nomineeDocRef = doc(firestore, ...collectionPathSegments, normalizedSubmittedName);
 
-    toast({
-      title: "Vote Submitted!",
-      description: `Your vote for ${submittedName} in ${isCourseVote ? currentCourseName : 'University Wide'} category has been recorded.`,
-    });
-  }, [toast]);
+    try {
+      await runTransaction(firestore, async (transaction) => {
+        const nomineeDoc = await transaction.get(nomineeDocRef);
+        if (!nomineeDoc.exists()) {
+          transaction.set(nomineeDocRef, { 
+            name: normalizedSubmittedName, 
+            originalName: submittedName, // Store the first submitted version of the name
+            votes: 1 
+          });
+        } else {
+          const currentVotes = nomineeDoc.data().votes || 0;
+          // originalName remains from the first vote
+          transaction.update(nomineeDocRef, { votes: currentVotes + 1 });
+        }
+      });
+
+      const voteCookieKey = isCourseVote && currentCourseName ? `course_${normalizeName(currentCourseName)}` : "university_overall";
+      setVotedCookie(voteCookieKey);
+      if (isCourseVote) setHasVotedForCourse(true);
+      else setHasVotedForUniversity(true);
+
+      toast({
+        title: "Vote Submitted!",
+        description: `Your vote for ${submittedName} in ${isCourseVote && currentCourseName ? currentCourseName : 'University Wide'} category has been recorded.`,
+      });
+
+    } catch (error) {
+      console.error("Error submitting vote:", error);
+      toast({
+        title: "Vote Failed",
+        description: "There was an error submitting your vote. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      if (isCourseVote) setIsLoadingCourseVote(false);
+      else setIsLoadingUniversityVote(false);
+    }
+  }, [userCourse, toast]);
 
 
   if (showCourseInput || !userCourse) {
@@ -180,12 +195,11 @@ export default function CampusVotePage() {
           <h1 className="text-3xl sm:text-4xl font-bold text-primary tracking-tight">Welcome to Rankings!</h1>
           <p className="text-muted-foreground mt-2 text-md">First, let's get your course information.</p>
         </header>
-        <CourseInputForm onSubmitCourse={handleCourseSubmit} isLoading={isLoadingCourse} />
+        <CourseInputForm onSubmitCourse={handleCourseSubmit} isLoading={isLoadingCourseForm} />
          <footer className="mt-12 text-center text-sm text-muted-foreground">
           <p>&copy; {new Date().getFullYear()} Rankings. All rights reserved.</p>
            <p className="mt-2 px-4">
-            **Note**: Rankings are currently stored in your browser's local storage. 
-            This means vote counts are specific to this browser and not globally shared in real-time.
+            Rankings are updated in real-time and shared across all users.
           </p>
         </footer>
       </div>
@@ -199,6 +213,16 @@ export default function CampusVotePage() {
         <p className="text-muted-foreground mt-2 text-md">
           Your course: <span className="font-semibold text-accent">{userCourse}</span>. Cast your votes!
         </p>
+         <button 
+            onClick={() => {
+              setShowCourseInput(true); 
+              setAppCookie(USER_COURSE_STORAGE_KEY, '', -1); // Clear course cookie
+              setUserCourse(null);
+            }} 
+            className="mt-2 text-sm text-primary hover:underline"
+          >
+            Change Course
+          </button>
       </header>
 
       <main className="w-full max-w-5xl">
@@ -209,7 +233,7 @@ export default function CampusVotePage() {
             icon={<GraduationCap className="h-8 w-8" />}
           >
             <NomineeInputForm
-              categoryKey={`course_${userCourse}`}
+              categoryKey={`course_${normalizeName(userCourse)}`} // Use normalized name for cookie key
               categoryDisplayName={`${userCourse}`}
               onSubmitVote={submitVote}
               hasVoted={hasVotedForCourse}
@@ -236,8 +260,10 @@ export default function CampusVotePage() {
 
         <Scoreboard 
           userCourse={userCourse} 
-          courseRankings={courseRankings} 
-          universityRankings={universityRankings} 
+          courseRankings={courseRankings} // This will contain { [userCourse]: Nominee[] }
+          universityRankings={universityRankings}
+          isLoadingCourseRankings={isLoadingCourseRankings}
+          isLoadingUniversityRankings={isLoadingUniversityRankings} 
         />
       </main>
 
@@ -245,8 +271,7 @@ export default function CampusVotePage() {
         <p>&copy; {new Date().getFullYear()} Rankings. All rights reserved.</p>
         <p>Should be fun, lol.</p>
         <p className="mt-2 px-4">
-          **Note**: Rankings are currently stored in your browser's local storage. 
-          This means vote counts are specific to this browser and not globally shared in real-time.
+          Rankings are updated in real-time and shared across all users.
         </p>
       </footer>
     </div>
