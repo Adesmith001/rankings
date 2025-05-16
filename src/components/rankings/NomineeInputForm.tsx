@@ -19,21 +19,22 @@ type NomineeInputFormValues = z.infer<typeof formSchema>;
 
 interface NomineeInputFormProps {
   categoryKey: string; 
-  categoryName: string; 
-  onSubmitVote: (name: string) => Promise<void>;
+  categoryDisplayName: string; 
+  onSubmitVote: (name: string, categoryKey: string) => Promise<void>;
   hasVoted: boolean;
   isLoading: boolean;
   placeholderText?: string;
-  disabled?: boolean; // Added disabled prop
+  disabled?: boolean;
 }
 
 export function NomineeInputForm({
-  categoryName,
+  categoryKey,
+  categoryDisplayName,
   onSubmitVote,
   hasVoted,
   isLoading,
   placeholderText = "Enter nominee's name",
-  disabled = false, // Default to false
+  disabled = false,
 }: NomineeInputFormProps) {
   const form = useForm<NomineeInputFormValues>({
     resolver: zodResolver(formSchema),
@@ -44,7 +45,7 @@ export function NomineeInputForm({
 
   const handleSubmit: SubmitHandler<NomineeInputFormValues> = async (data) => {
     if (hasVoted || isLoading || disabled) return;
-    await onSubmitVote(data.name);
+    await onSubmitVote(data.name, categoryKey);
     form.reset(); 
   };
 
@@ -54,7 +55,7 @@ export function NomineeInputForm({
         <CheckCircle2 className="h-5 w-5" />
         <AlertTitle>Vote Cast!</AlertTitle>
         <AlertDescription>
-          You have already voted in the {categoryName} category. Thank you for your participation!
+          You have already voted in the {categoryDisplayName} category. Thank you for your participation!
         </AlertDescription>
       </Alert>
     );
@@ -68,7 +69,7 @@ export function NomineeInputForm({
           name="name"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Nominee Name for {categoryName}</FormLabel>
+              <FormLabel>Nominee Name for {categoryDisplayName}</FormLabel>
               <FormControl>
                 <Input placeholder={placeholderText} {...field} disabled={isLoading || disabled} />
               </FormControl>
@@ -95,4 +96,3 @@ export function NomineeInputForm({
     </Form>
   );
 }
-

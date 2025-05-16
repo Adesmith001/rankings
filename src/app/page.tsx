@@ -6,215 +6,249 @@ import { useState, useEffect, useCallback } from "react";
 import { NomineeInputForm } from "@/components/rankings/NomineeInputForm";
 import { RankingCard } from "@/components/rankings/RankingCard";
 import { Scoreboard } from "@/components/rankings/Scoreboard";
-import type { Nominee, CSNominee } from "@/types/campus-vote";
-import { hasVotedCookie, setVotedCookie } from "@/lib/cookies";
+import { CourseInputForm } from "@/components/rankings/CourseInputForm";
+import type { Nominee, CourseRankings } from "@/types/campus-vote";
+import { hasVotedCookie, setVotedCookie, getCookie as getAppCookie, setCookie as setAppCookie } from "@/lib/cookies";
 import { useToast } from "@/hooks/use-toast";
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { Label } from "@/components/ui/label";
-import { User, Users2 } from "lucide-react";
+import { User, Users2, GraduationCap, University } from "lucide-react";
 
-const MIS_RANKINGS_STORAGE_KEY = "campusVote_misRankings";
-const CS_RANKINGS_STORAGE_KEY = "campusVote_csRankings";
+const USER_COURSE_STORAGE_KEY = "campusVote_userCourse";
+const COURSE_RANKINGS_STORAGE_KEY = "campusVote_courseRankings";
+const UNIVERSITY_RANKINGS_STORAGE_KEY = "campusVote_universityRankings";
+
+const normalizeName = (name: string): string => {
+  return name.trim().toLowerCase().replace(/\s+/g, ' ');
+};
 
 export default function CampusVotePage() {
   const { toast } = useToast();
 
-  const [misRankings, setMisRankings] = useState<Nominee[]>([]);
-  const [csRankings, setCsRankings] = useState<CSNominee[]>([]);
+  const [userCourse, setUserCourse] = useState<string | null>(null);
+  const [showCourseInput, setShowCourseInput] = useState(false);
+  const [isLoadingCourse, setIsLoadingCourse] = useState(false);
 
-  const [hasVotedMis, setHasVotedMis] = useState(false);
-  const [hasVotedCs, setHasVotedCs] = useState(false);
+  const [courseRankings, setCourseRankings] = useState<CourseRankings>({});
+  const [universityRankings, setUniversityRankings] = useState<Nominee[]>([]);
+
+  const [hasVotedForCourse, setHasVotedForCourse] = useState(false);
+  const [hasVotedForUniversity, setHasVotedForUniversity] = useState(false);
   
-  const [isLoadingMis, setIsLoadingMis] = useState(false);
-  const [isLoadingCs, setIsLoadingCs] = useState(false);
+  const [isLoadingCourseVote, setIsLoadingCourseVote] = useState(false);
+  const [isLoadingUniversityVote, setIsLoadingUniversityVote] = useState(false);
 
-  const [selectedVoterDeptForCs, setSelectedVoterDeptForCs] = useState<'MIS' | 'CS' | undefined>(undefined);
-
-  // Load data from localStorage and check voting cookies on mount
+  // Load data from localStorage and cookies on mount
   useEffect(() => {
-    // Load MIS Rankings from localStorage
-    try {
-      const storedMisData = localStorage.getItem(MIS_RANKINGS_STORAGE_KEY);
-      if (storedMisData) {
-        const parsedData = JSON.parse(storedMisData) as Nominee[];
-        if (Array.isArray(parsedData) && parsedData.every(item => typeof item.id === 'string' && typeof item.name === 'string' && typeof item.votes === 'number')) {
-          setMisRankings(parsedData);
-        } else if (parsedData !== null && parsedData !== undefined) { // Handles cases where "null" or "undefined" string was stored
-           console.warn("MIS rankings data in localStorage is malformed. Resetting.");
-           localStorage.removeItem(MIS_RANKINGS_STORAGE_KEY);
-        }
-      }
-    } catch (error) {
-      console.error("Failed to load or parse MIS rankings from localStorage:", error);
+    const storedUserCourse = getAppCookie(USER_COURSE_STORAGE_KEY);
+    if (storedUserCourse) {
+      setUserCourse(storedUserCourse);
+      setShowCourseInput(false);
+      setHasVotedForCourse(hasVotedCookie(`course_${storedUserCourse}`));
+    } else {
+      setShowCourseInput(true);
     }
 
-    // Load CS Rankings from localStorage
     try {
-      const storedCsData = localStorage.getItem(CS_RANKINGS_STORAGE_KEY);
-      if (storedCsData) {
-        const parsedData = JSON.parse(storedCsData) as CSNominee[];
-        if (Array.isArray(parsedData) && parsedData.every(item => typeof item.id === 'string' && typeof item.name === 'string' && typeof item.votes === 'number')) {
-          setCsRankings(parsedData);
-        } else if (parsedData !== null && parsedData !== undefined) {
-           console.warn("CS rankings data in localStorage is malformed. Resetting.");
-           localStorage.removeItem(CS_RANKINGS_STORAGE_KEY);
-        }
+      const storedCourseRankings = localStorage.getItem(COURSE_RANKINGS_STORAGE_KEY);
+      if (storedCourseRankings) {
+        setCourseRankings(JSON.parse(storedCourseRankings));
       }
     } catch (error) {
-      console.error("Failed to load or parse CS rankings from localStorage:", error);
+      console.error("Failed to load course rankings from localStorage:", error);
+      localStorage.removeItem(COURSE_RANKINGS_STORAGE_KEY); // Clear corrupted data
     }
 
-    setHasVotedMis(hasVotedCookie("mis_girls"));
-    setHasVotedCs(hasVotedCookie("cs_department_girls"));
+    try {
+      const storedUniversityRankings = localStorage.getItem(UNIVERSITY_RANKINGS_STORAGE_KEY);
+      if (storedUniversityRankings) {
+        setUniversityRankings(JSON.parse(storedUniversityRankings));
+      }
+    } catch (error) {
+      console.error("Failed to load university rankings from localStorage:", error);
+      localStorage.removeItem(UNIVERSITY_RANKINGS_STORAGE_KEY); // Clear corrupted data
+    }
+    
+    setHasVotedForUniversity(hasVotedCookie("university_overall"));
   }, []);
 
-  // Save MIS rankings to localStorage whenever they change
+  // Save courseRankings to localStorage
   useEffect(() => {
-    try {
-      localStorage.setItem(MIS_RANKINGS_STORAGE_KEY, JSON.stringify(misRankings));
-    } catch (error) {
-      console.error("Failed to save MIS rankings to localStorage:", error);
-    }
-  }, [misRankings]);
-
-  // Save CS rankings to localStorage whenever they change
-  useEffect(() => {
-    try {
-      localStorage.setItem(CS_RANKINGS_STORAGE_KEY, JSON.stringify(csRankings));
-    } catch (error) {
-      console.error("Failed to save CS rankings to localStorage:", error);
-    }
-  }, [csRankings]);
-
-  // Simulate API call and update state
-  const generalSubmitVote = useCallback(async (
-    categoryKey: string,
-    nomineeName: string,
-    currentRankings: Nominee[], // This parameter is not strictly needed if setRankings directly uses its callback form
-    setRankings: React.Dispatch<React.SetStateAction<Nominee[]>>,
-    setHasVotedState: React.Dispatch<React.SetStateAction<boolean>>,
-    setIsLoadingState: React.Dispatch<React.SetStateAction<boolean>>,
-    categoryDisplayName: string,
-    voterAffiliation?: string
-  ): Promise<void> => {
-    setIsLoadingState(true);
-    
-    // Simulate API delay
-    await new Promise(resolve => setTimeout(resolve, 1000));
-
-    setRankings(prevRankings => {
-      const existingNomineeIndex = prevRankings.findIndex(n => n.name.toLowerCase() === nomineeName.toLowerCase());
-      if (existingNomineeIndex > -1) {
-        const updatedRankings = [...prevRankings];
-        updatedRankings[existingNomineeIndex] = {
-          ...updatedRankings[existingNomineeIndex],
-          votes: updatedRankings[existingNomineeIndex].votes + 1,
-        };
-        return updatedRankings;
-      } else {
-        const newId = `${categoryKey}-${nomineeName.toLowerCase().replace(/\s+/g, '-')}-${Date.now()}`;
-        return [...prevRankings, { id: newId, name: nomineeName, votes: 1 }];
+    if (Object.keys(courseRankings).length > 0) {
+     try {
+        localStorage.setItem(COURSE_RANKINGS_STORAGE_KEY, JSON.stringify(courseRankings));
+      } catch (error) {
+        console.error("Failed to save course rankings to localStorage:", error);
       }
-    });
+    }
+  }, [courseRankings]);
 
-    setVotedCookie(categoryKey);
-    setHasVotedState(true);
-    setIsLoadingState(false);
+  // Save universityRankings to localStorage
+  useEffect(() => {
+    if (universityRankings.length > 0 || localStorage.getItem(UNIVERSITY_RANKINGS_STORAGE_KEY)) { // Save even if empty to clear previous data if needed
+      try {
+        localStorage.setItem(UNIVERSITY_RANKINGS_STORAGE_KEY, JSON.stringify(universityRankings));
+      } catch (error) {
+        console.error("Failed to save university rankings to localStorage:", error);
+      }
+    }
+  }, [universityRankings]);
+
+
+  const handleCourseSubmit = (courseName: string) => {
+    setIsLoadingCourse(true);
+    setUserCourse(courseName);
+    setAppCookie(USER_COURSE_STORAGE_KEY, courseName);
+    setShowCourseInput(false);
+    setHasVotedForCourse(hasVotedCookie(`course_${courseName}`)); // Check if already voted for this new course
+    setIsLoadingCourse(false);
+    toast({
+      title: "Course Saved!",
+      description: `Your course is set to ${courseName}.`,
+    });
+  };
+  
+  const submitVote = useCallback(async (
+    submittedName: string,
+    categoryKey: string // e.g., "course_computer_science" or "university_overall"
+  ): Promise<void> => {
+    
+    const isCourseVote = categoryKey.startsWith("course_");
+    const currentCourseName = isCourseVote ? categoryKey.substring("course_".length) : null;
+
+    if (isCourseVote) setIsLoadingCourseVote(true);
+    else setIsLoadingUniversityVote(true);
+    
+    await new Promise(resolve => setTimeout(resolve, 1000)); // Simulate API delay
+
+    const normalizedSubmittedName = normalizeName(submittedName);
+
+    if (isCourseVote && currentCourseName) {
+      setCourseRankings(prevRankings => {
+        const specificCourseRankings = prevRankings[currentCourseName] || [];
+        const existingNomineeIndex = specificCourseRankings.findIndex(n => n.name === normalizedSubmittedName);
+        let updatedSpecificCourseRankings;
+
+        if (existingNomineeIndex > -1) {
+          updatedSpecificCourseRankings = [...specificCourseRankings];
+          updatedSpecificCourseRankings[existingNomineeIndex] = {
+            ...updatedSpecificCourseRankings[existingNomineeIndex],
+            votes: updatedSpecificCourseRankings[existingNomineeIndex].votes + 1,
+          };
+        } else {
+          const newId = `${categoryKey}-${normalizedSubmittedName.replace(/\s+/g, '-')}-${Date.now()}`;
+          updatedSpecificCourseRankings = [
+            ...specificCourseRankings,
+            { id: newId, name: normalizedSubmittedName, originalName: submittedName, votes: 1 }
+          ];
+        }
+        return { ...prevRankings, [currentCourseName]: updatedSpecificCourseRankings };
+      });
+      setVotedCookie(categoryKey);
+      setHasVotedForCourse(true);
+    } else { // University vote
+      setUniversityRankings(prevRankings => {
+        const existingNomineeIndex = prevRankings.findIndex(n => n.name === normalizedSubmittedName);
+        if (existingNomineeIndex > -1) {
+          const updatedRankings = [...prevRankings];
+          updatedRankings[existingNomineeIndex] = {
+            ...updatedRankings[existingNomineeIndex],
+            votes: updatedRankings[existingNomineeIndex].votes + 1,
+          };
+          return updatedRankings;
+        } else {
+          const newId = `${categoryKey}-${normalizedSubmittedName.replace(/\s+/g, '-')}-${Date.now()}`;
+          return [...prevRankings, { id: newId, name: normalizedSubmittedName, originalName: submittedName, votes: 1 }];
+        }
+      });
+      setVotedCookie(categoryKey);
+      setHasVotedForUniversity(true);
+    }
+
+    if (isCourseVote) setIsLoadingCourseVote(false);
+    else setIsLoadingUniversityVote(false);
+
     toast({
       title: "Vote Submitted!",
-      description: `Your vote for ${nomineeName} in ${categoryDisplayName} has been recorded. ${voterAffiliation ? `(Affiliation: ${voterAffiliation})` : ''}`,
-      variant: "default",
+      description: `Your vote for ${submittedName} in ${isCourseVote ? currentCourseName : 'University Wide'} category has been recorded.`,
     });
   }, [toast]);
 
 
-  const handleVoteMis = useCallback(async (name: string) => {
-    // Pass misRankings to satisfy generalSubmitVote, though it uses the callback form of setMisRankings
-    await generalSubmitVote("mis_girls", name, misRankings, setMisRankings, setHasVotedMis, setIsLoadingMis, "MIS Girls");
-  }, [generalSubmitVote, misRankings]);
-
-  const handleVoteCs = useCallback(async (name: string) => {
-    if (!selectedVoterDeptForCs) {
-      toast({
-        title: "Selection Required",
-        description: "Please select your department affiliation before voting for a CIS Department Girl.",
-        variant: "destructive",
-      });
-      return;
-    }
-    // Pass csRankings similarly
-    await generalSubmitVote("cs_department_girls", name, csRankings, setCsRankings, setHasVotedCs, setIsLoadingCs, "CS Department Girls", selectedVoterDeptForCs);
-  }, [generalSubmitVote, csRankings, selectedVoterDeptForCs, toast]);
-
+  if (showCourseInput || !userCourse) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-screen p-4 sm:p-8 bg-background text-foreground">
+        <header className="mb-10 text-center">
+          <h1 className="text-3xl sm:text-4xl font-bold text-primary tracking-tight">Welcome to Rankings!</h1>
+          <p className="text-muted-foreground mt-2 text-md">First, let's get your course information.</p>
+        </header>
+        <CourseInputForm onSubmitCourse={handleCourseSubmit} isLoading={isLoadingCourse} />
+         <footer className="mt-12 text-center text-sm text-muted-foreground">
+          <p>&copy; {new Date().getFullYear()} Rankings. All rights reserved.</p>
+           <p className="mt-2 px-4">
+            **Note**: Rankings are currently stored in your browser's local storage. 
+            This means vote counts are specific to this browser and not globally shared in real-time.
+          </p>
+        </footer>
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col items-center min-h-screen p-4 sm:p-8 bg-background text-foreground">
       <header className="mb-10 text-center">
-        <h1 className="text-4xl sm:text-5xl font-bold text-primary tracking-tight">Rankings</h1>
-        <p className="text-muted-foreground mt-2 text-md">Cast your vote and see who's leading the polls!</p>
+        <h1 className="text-3xl sm:text-5xl font-bold text-primary tracking-tight">Rankings</h1>
+        <p className="text-muted-foreground mt-2 text-md">
+          Your course: <span className="font-semibold text-accent">{userCourse}</span>. Cast your votes!
+        </p>
       </header>
 
       <main className="w-full max-w-5xl">
         <div className="grid md:grid-cols-2 gap-8 mb-8">
           <RankingCard 
-            title="MIS Girls Ranking" 
-            description="Vote for your favorite MIS girl."
-            icon={<User className="h-8 w-8" />}
+            title={`Finest Girl in ${userCourse}`}
+            description={`Vote for the finest girl in your course: ${userCourse}.`}
+            icon={<GraduationCap className="h-8 w-8" />}
           >
             <NomineeInputForm
-              categoryKey="mis_girls"
-              categoryName="MIS Girls"
-              onSubmitVote={handleVoteMis}
-              hasVoted={hasVotedMis}
-              isLoading={isLoadingMis}
-              placeholderText="Enter MIS girl's name"
+              categoryKey={`course_${userCourse}`}
+              categoryDisplayName={`${userCourse}`}
+              onSubmitVote={submitVote}
+              hasVoted={hasVotedForCourse}
+              isLoading={isLoadingCourseVote}
+              placeholderText="Enter nominee's name"
             />
           </RankingCard>
 
           <RankingCard 
-            title="CIS Department Girls Ranking" 
-            description="Select your department affiliation, then vote for a CIS Department girl."
-            icon={<Users2 className="h-8 w-8" />}
+            title="Finest Girl in University"
+            description="Vote for the finest girl in the entire university."
+            icon={<University className="h-8 w-8" />}
           >
-            <div className="mb-4">
-              <Label className="text-sm font-medium mb-2 block">Your Department Affiliation:</Label>
-              <RadioGroup
-                value={selectedVoterDeptForCs}
-                onValueChange={(value: 'MIS' | 'CS') => setSelectedVoterDeptForCs(value)}
-                className="flex space-x-4"
-                disabled={hasVotedCs || isLoadingCs}
-              >
-                <div className="flex items-center space-x-2">
-                  <RadioGroupItem value="MIS" id="voter-dept-mis" />
-                  <Label htmlFor="voter-dept-mis">MIS</Label>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <RadioGroupItem value="CS" id="voter-dept-cs" />
-                  <Label htmlFor="voter-dept-cs">CS</Label>
-                </div>
-              </RadioGroup>
-              {!selectedVoterDeptForCs && !(hasVotedCs || isLoadingCs) && <p className="text-xs text-destructive mt-1">Please select an affiliation to vote.</p>}
-            </div>
             <NomineeInputForm
-              categoryKey="cs_department_girls"
-              categoryName="CS Department Girls"
-              onSubmitVote={handleVoteCs}
-              hasVoted={hasVotedCs}
-              isLoading={isLoadingCs}
-              placeholderText="Enter CIS girl's name"
-              disabled={!selectedVoterDeptForCs && !hasVotedCs} // Disable form if no affiliation selected and not yet voted
+              categoryKey="university_overall"
+              categoryDisplayName="University Wide"
+              onSubmitVote={submitVote}
+              hasVoted={hasVotedForUniversity}
+              isLoading={isLoadingUniversityVote}
+              placeholderText="Enter nominee's name"
             />
           </RankingCard>
         </div>
 
-        <Scoreboard misRankings={misRankings} csRankings={csRankings} />
+        <Scoreboard 
+          userCourse={userCourse} 
+          courseRankings={courseRankings} 
+          universityRankings={universityRankings} 
+        />
       </main>
 
       <footer className="mt-12 text-center text-sm text-muted-foreground">
         <p>&copy; {new Date().getFullYear()} Rankings. All rights reserved.</p>
         <p>Should be fun, lol.</p>
+        <p className="mt-2 px-4">
+          **Note**: Rankings are currently stored in your browser's local storage. 
+          This means vote counts are specific to this browser and not globally shared in real-time.
+        </p>
       </footer>
     </div>
   );
 }
-

@@ -1,3 +1,4 @@
+
 "use client";
 
 const COOKIE_EXPIRY_DAYS = 365; // Vote tracking cookie valid for 1 year
@@ -10,12 +11,16 @@ export function setCookie(name: string, value: string, days: number = COOKIE_EXP
     date.setTime(date.getTime() + (days * 24 * 60 * 60 * 1000));
     expires = "; expires=" + date.toUTCString();
   }
-  document.cookie = name + "=" + (value || "")  + expires + "; path=/";
+  // Ensure cookie keys are valid by replacing spaces and converting to lowercase
+  const sanitizedName = name.toLowerCase().replace(/\s+/g, '_');
+  document.cookie = sanitizedName + "=" + (value || "")  + expires + "; path=/";
 }
 
 export function getCookie(name: string): string | null {
   if (typeof document === "undefined") return null;
-  const nameEQ = name + "=";
+  // Ensure cookie keys are valid when retrieving
+  const sanitizedName = name.toLowerCase().replace(/\s+/g, '_');
+  const nameEQ = sanitizedName + "=";
   const ca = document.cookie.split(';');
   for(let i = 0; i < ca.length; i++) {
     let c = ca[i];
@@ -27,10 +32,11 @@ export function getCookie(name: string): string | null {
 
 const VOTE_COOKIE_PREFIX = "campus_vote_";
 
+// Category key can now be dynamic, e.g., "course_computer_science" or "university_overall"
 export function hasVotedCookie(categoryKey: string): boolean {
-  return getCookie(VOTE_COOKIE_PREFIX + categoryKey) === "true";
+  return getCookie(VOTE_COOKIE_PREFIX + categoryKey.toLowerCase().replace(/\s+/g, '_')) === "true";
 }
 
 export function setVotedCookie(categoryKey: string): void {
-  setCookie(VOTE_COOKIE_PREFIX + categoryKey, "true");
+  setCookie(VOTE_COOKIE_PREFIX + categoryKey.toLowerCase().replace(/\s+/g, '_'), "true");
 }

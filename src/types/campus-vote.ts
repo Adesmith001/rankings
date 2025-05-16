@@ -1,19 +1,12 @@
+
 export interface Nominee {
   id: string;
-  name: string;
+  name: string; // This will store the normalized name
+  originalName: string; // Stores the first-ever submitted version of the name for display
   votes: number;
 }
 
-// For CS Department Girls, we might want to store which department the voter affiliated with,
-// but for simplicity, we'll treat them as a single pool of nominees.
-// If specific tracking of voter department for CS Girls is needed for scoreboard, this can be expanded.
-// For now, CSNominee is the same as Nominee.
-export interface CSNominee extends Nominee {
-  // Example of potential extension:
-  // misAffiliatedVotes?: number;
-  // csAffiliatedVotes?: number;
-}
+// Type for storing rankings for multiple courses
+export type CourseRankings = Record<string, Nominee[]>;
 
-export interface CombinedNominee extends Nominee {
-  category: string;
-}
+// No longer need CSNominee or CombinedNominee as the structure is more generic now.
