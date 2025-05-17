@@ -47,7 +47,6 @@ export function Scoreboard({
 }: ScoreboardProps) {
   
   // University rankings are already sorted by Firestore query
-  // const sortedUniversityRankings = [...universityRankings].sort((a, b) => b.votes - a.votes);
   
   // Course specific rankings are already sorted by Firestore query
   const userCourseSpecificRankings = userCourse && courseRankings[userCourse]
@@ -104,7 +103,7 @@ export function Scoreboard({
       </CardHeader>
       <CardContent>
         <Tabs defaultValue={defaultTab} key={defaultTab}> {/* Add key to force re-render on defaultTab change if needed */}
-          <TabsList className="grid w-full grid-cols-1 sm:grid-cols-2 mb-4">
+          <TabsList className="grid w-full grid-cols-1 md:grid-cols-2 mb-4"> {/* Changed sm:grid-cols-2 to grid-cols-2 */}
             {userCourse && (
               <TabsTrigger value="userCourse" className="flex items-center gap-2">
                 <Users className="h-4 w-4" /> {userCourse}
@@ -127,3 +126,4 @@ export function Scoreboard({
     </Card>
   );
 }
+
