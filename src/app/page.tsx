@@ -16,129 +16,38 @@ import { collection, doc, runTransaction, onSnapshot, query, orderBy, where, get
 
 const USER_COURSE_STORAGE_KEY = "campusVote_userCourse";
 
-// Define a list of available courses
 const AVAILABLE_COURSES = [
   "Accounting",
-  "Actuarial Science",
-  "Adult Education",
-  "Agricultural Economics",
-  "Agricultural Engineering",
-  "Agriculture",
-  "Anatomy",
-  "Animal Science",
-  "Anthropology",
-  "Applied Chemistry",
-  "Arabic Studies",
-  "Archaeology",
   "Architecture",
-  "Banking and Finance",
   "Biochemistry",
   "Biology",
-  "Botany",
-  "Building",
+  "Building Technology",
   "Business Administration",
-  "Business Education",
   "Chemical Engineering",
-  "Chemistry",
-  "Christian Religious Studies",
   "Civil Engineering",
   "Computer Engineering",
   "Computer Science",
-  "Counselling Psychology",
-  "Creative Arts",
-  "Crop Science",
-  "Dentistry",
-  "Early Childhood Education",
   "Economics",
-  "Education and Biology",
-  "Education and Chemistry",
-  "Education and Computer Science",
-  "Education and Economics",
-  "Education and English Language",
-  "Education and French",
-  "Education and Geography",
-  "Education and History",
-  "Education and Integrated Science",
-  "Education and Mathematics",
-  "Education and Physics",
-  "Education and Political Science",
-  "Education and Religious Studies",
-  "Education and Social Studies",
-  "Educational Administration",
-  "Educational Management",
-  "Electrical Engineering",
-  "Electronics Engineering",
-  "English Language",
-  "Environmental Management",
+  "Electrical and Electronics Engineering",
+  "English",
   "Estate Management",
-  "Fine and Applied Arts",
-  "Fisheries and Aquaculture",
-  "Food Science and Technology",
-  "Forestry and Wildlife Management",
-  "French",
-  "Geography",
-  "Geology",
-  "Guidance and Counselling",
-  "Health Education",
-  "History and International Studies",
-  "Home Economics",
-  "Hospitality and Tourism Management",
-  "Human Kinetics",
+  "Finance",
   "Industrial Chemistry",
-  "Industrial Design",
-  "Industrial Engineering",
-  "Industrial Relations and Personnel Management",
-  "Insurance",
-  "Integrated Science",
+  "Industrial Mathematics",
+  "Industrial Physics",
+  "Industrial Relations and Human Resource Management",
+  "Information and Communication Engineering",
   "International Relations",
-  "Islamic Studies",
-  "Law",
-  "Library and Information Science",
-  "Linguistics",
-  "Literature in English",
+  "Management Information Systems",
   "Marketing",
   "Mass Communication",
-  "Mathematics",
   "Mechanical Engineering",
-  "Medical Laboratory Science",
-  "Medicine and Surgery",
-  "Metallurgical and Materials Engineering",
   "Microbiology",
-  "Music",
-  "Nursing",
-  "Nutrition and Dietetics",
-  "Optometry",
-  "Performing Arts",
   "Petroleum Engineering",
-  "Pharmaceutical Sciences",
-  "Pharmacology",
-  "Pharmacy",
-  "Philosophy",
-  "Physical and Health Education",
-  "Physics",
-  "Physiology",
-  "Physiotherapy",
-  "Plant Science and Biotechnology",
+  "Policy and Strategic Studies",
   "Political Science",
   "Psychology",
-  "Public Administration",
-  "Public Health",
-  "Quantity Surveying",
-  "Radiography",
-  "Religious Studies",
-  "Sociology",
-  "Soil Science",
-  "Statistics",
-  "Surveying and Geoinformatics",
-  "Teacher Education",
-  "Technical Education",
-  "Theatre Arts",
-  "Theology",
-  "Urban and Regional Planning",
-  "Veterinary Medicine",
-  "Yoruba",
-  "Zoology",
-  // Add more common courses here
+  "Sociology"
 ];
 
 
@@ -235,7 +144,6 @@ export default function CampusVotePage() {
 
   const handleCourseSubmit = (courseName: string) => {
     setIsLoadingCourseForm(true);
-    // courseName is already from the dropdown, so it's valid
     setUserCourse(courseName);
     setAppCookie(USER_COURSE_STORAGE_KEY, courseName);
     setShowCourseInput(false);
@@ -345,7 +253,7 @@ export default function CampusVotePage() {
       <header className="mb-10 text-center">
         <h1 className="text-3xl sm:text-5xl font-bold text-primary tracking-tight">Rankings</h1>
         <p className="text-muted-foreground mt-2 text-md">
-          Your course: <span className="font-semibold text-accent">{userCourse}</span>. Cast your votes!
+          Your course: <span className="font-semibold text-black">{userCourse}</span>. Cast your votes!
         </p>
          <button 
             onClick={() => {
@@ -403,7 +311,6 @@ export default function CampusVotePage() {
 
       <footer className="mt-12 text-center text-sm text-muted-foreground">
         <p>&copy; {new Date().getFullYear()} Rankings. All rights reserved.</p>
-        <p>Should be fun, lol.</p>
         <p className="mt-2 px-4">
           Rankings are updated in real-time and shared across all users.
         </p>

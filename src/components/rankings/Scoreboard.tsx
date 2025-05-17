@@ -102,8 +102,8 @@ export function Scoreboard({
         </div>
       </CardHeader>
       <CardContent>
-        <Tabs defaultValue={defaultTab} key={defaultTab}> {/* Add key to force re-render on defaultTab change if needed */}
-          <TabsList className="grid w-full grid-cols-1 md:grid-cols-2 mb-4"> {/* Changed sm:grid-cols-2 to grid-cols-2 */}
+        <Tabs defaultValue={defaultTab} key={defaultTab}>
+          <TabsList className="w-full grid grid-cols-1 md:grid-cols-2 space-y-3 md:space-y-0 mb-8">
             {userCourse && (
               <TabsTrigger value="userCourse" className="flex items-center gap-2">
                 <Users className="h-4 w-4" /> {userCourse}
