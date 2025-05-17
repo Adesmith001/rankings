@@ -8,13 +8,13 @@ import { getFirestore } from "firebase/firestore";
 // Your web app's Firebase configuration
 // REPLACE THIS WITH YOUR ACTUAL FIREBASE CONFIGURATION
 const firebaseConfig = {
-  apiKey: "YOUR_API_KEY",
-  authDomain: "YOUR_AUTH_DOMAIN",
-  projectId: "YOUR_PROJECT_ID",
-  storageBucket: "YOUR_STORAGE_BUCKET",
-  messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
-  appId: "YOUR_APP_ID",
-  // measurementId: "YOUR_MEASUREMENT_ID" // Optional
+  apiKey: "AIzaSyDJtqj1BtqJQaVeJVD7ooQ6MmIwpKvZkG8",
+  authDomain: "caloriestracker-bd250.firebaseapp.com",
+  projectId: "caloriestracker-bd250",
+  storageBucket: "caloriestracker-bd250.firebasestorage.app",
+  messagingSenderId: "1005800375557",
+  appId: "1:1005800375557:web:2e9d3cc9b297463c0f636c",
+  measurementId: "G-HFRHK3VFQ0"
 };
 
 // Initialize Firebase

@@ -6,13 +6,13 @@ import { useForm, type SubmitHandler } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { BookMarked } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { ListChecks } from "lucide-react"; // Changed icon
 
 const formSchema = z.object({
-  courseName: z.string().min(3, { message: "Course name must be at least 3 characters." }).max(100, {message: "Course name must be 100 characters or less."}),
+  courseName: z.string().min(1, { message: "Please select your course." }),
 });
 
 type CourseInputFormValues = z.infer<typeof formSchema>;
@@ -20,9 +20,10 @@ type CourseInputFormValues = z.infer<typeof formSchema>;
 interface CourseInputFormProps {
   onSubmitCourse: (courseName: string) => void;
   isLoading: boolean;
+  courses: string[]; // Added prop for the list of courses
 }
 
-export function CourseInputForm({ onSubmitCourse, isLoading }: CourseInputFormProps) {
+export function CourseInputForm({ onSubmitCourse, isLoading, courses }: CourseInputFormProps) {
   const form = useForm<CourseInputFormValues>({
     resolver: zodResolver(formSchema),
     defaultValues: {
@@ -32,7 +33,7 @@ export function CourseInputForm({ onSubmitCourse, isLoading }: CourseInputFormPr
 
   const handleSubmit: SubmitHandler<CourseInputFormValues> = (data) => {
     if (isLoading) return;
-    onSubmitCourse(data.courseName.trim());
+    onSubmitCourse(data.courseName); // data.courseName will be the selected value
     form.reset();
   };
 
@@ -40,10 +41,10 @@ export function CourseInputForm({ onSubmitCourse, isLoading }: CourseInputFormPr
     <Card className="w-full max-w-md shadow-xl">
       <CardHeader>
         <div className="flex items-center space-x-3">
-          <BookMarked className="h-8 w-8 text-primary" />
-          <CardTitle className="text-2xl">Enter Your Course</CardTitle>
+          <ListChecks className="h-8 w-8 text-primary" />
+          <CardTitle className="text-2xl">Select Your Course</CardTitle>
         </div>
-        <CardDescription>Please enter your course name to continue. (e.g., Computer Science)</CardDescription>
+        <CardDescription>Please select your course from the list below to continue.</CardDescription>
       </CardHeader>
       <CardContent>
         <Form {...form}>
@@ -53,10 +54,25 @@ export function CourseInputForm({ onSubmitCourse, isLoading }: CourseInputFormPr
               name="courseName"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Course Name</FormLabel>
-                  <FormControl>
-                    <Input placeholder="E.g., Mass Communication" {...field} disabled={isLoading} />
-                  </FormControl>
+                  <FormLabel>Course</FormLabel>
+                  <Select 
+                    onValueChange={field.onChange} 
+                    defaultValue={field.value} 
+                    disabled={isLoading}
+                  >
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select your course" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      {courses.map((course) => (
+                        <SelectItem key={course} value={course}>
+                          {course}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                   <FormMessage />
                 </FormItem>
               )}

@@ -12,9 +12,135 @@ import { hasVotedCookie, setVotedCookie, getCookie as getAppCookie, setCookie as
 import { useToast } from "@/hooks/use-toast";
 import { GraduationCap, University } from "lucide-react";
 import { firestore } from "@/lib/firebase";
-import { collection, doc, runTransaction, onSnapshot, query, orderBy } from "firebase/firestore";
+import { collection, doc, runTransaction, onSnapshot, query, orderBy, where, getDocs, writeBatch } from "firebase/firestore";
 
 const USER_COURSE_STORAGE_KEY = "campusVote_userCourse";
+
+// Define a list of available courses
+const AVAILABLE_COURSES = [
+  "Accounting",
+  "Actuarial Science",
+  "Adult Education",
+  "Agricultural Economics",
+  "Agricultural Engineering",
+  "Agriculture",
+  "Anatomy",
+  "Animal Science",
+  "Anthropology",
+  "Applied Chemistry",
+  "Arabic Studies",
+  "Archaeology",
+  "Architecture",
+  "Banking and Finance",
+  "Biochemistry",
+  "Biology",
+  "Botany",
+  "Building",
+  "Business Administration",
+  "Business Education",
+  "Chemical Engineering",
+  "Chemistry",
+  "Christian Religious Studies",
+  "Civil Engineering",
+  "Computer Engineering",
+  "Computer Science",
+  "Counselling Psychology",
+  "Creative Arts",
+  "Crop Science",
+  "Dentistry",
+  "Early Childhood Education",
+  "Economics",
+  "Education and Biology",
+  "Education and Chemistry",
+  "Education and Computer Science",
+  "Education and Economics",
+  "Education and English Language",
+  "Education and French",
+  "Education and Geography",
+  "Education and History",
+  "Education and Integrated Science",
+  "Education and Mathematics",
+  "Education and Physics",
+  "Education and Political Science",
+  "Education and Religious Studies",
+  "Education and Social Studies",
+  "Educational Administration",
+  "Educational Management",
+  "Electrical Engineering",
+  "Electronics Engineering",
+  "English Language",
+  "Environmental Management",
+  "Estate Management",
+  "Fine and Applied Arts",
+  "Fisheries and Aquaculture",
+  "Food Science and Technology",
+  "Forestry and Wildlife Management",
+  "French",
+  "Geography",
+  "Geology",
+  "Guidance and Counselling",
+  "Health Education",
+  "History and International Studies",
+  "Home Economics",
+  "Hospitality and Tourism Management",
+  "Human Kinetics",
+  "Industrial Chemistry",
+  "Industrial Design",
+  "Industrial Engineering",
+  "Industrial Relations and Personnel Management",
+  "Insurance",
+  "Integrated Science",
+  "International Relations",
+  "Islamic Studies",
+  "Law",
+  "Library and Information Science",
+  "Linguistics",
+  "Literature in English",
+  "Marketing",
+  "Mass Communication",
+  "Mathematics",
+  "Mechanical Engineering",
+  "Medical Laboratory Science",
+  "Medicine and Surgery",
+  "Metallurgical and Materials Engineering",
+  "Microbiology",
+  "Music",
+  "Nursing",
+  "Nutrition and Dietetics",
+  "Optometry",
+  "Performing Arts",
+  "Petroleum Engineering",
+  "Pharmaceutical Sciences",
+  "Pharmacology",
+  "Pharmacy",
+  "Philosophy",
+  "Physical and Health Education",
+  "Physics",
+  "Physiology",
+  "Physiotherapy",
+  "Plant Science and Biotechnology",
+  "Political Science",
+  "Psychology",
+  "Public Administration",
+  "Public Health",
+  "Quantity Surveying",
+  "Radiography",
+  "Religious Studies",
+  "Sociology",
+  "Soil Science",
+  "Statistics",
+  "Surveying and Geoinformatics",
+  "Teacher Education",
+  "Technical Education",
+  "Theatre Arts",
+  "Theology",
+  "Urban and Regional Planning",
+  "Veterinary Medicine",
+  "Yoruba",
+  "Zoology",
+  // Add more common courses here
+];
+
 
 const normalizeName = (name: string): string => {
   return name.trim().toLowerCase().replace(/\s+/g, ' ');
@@ -24,7 +150,7 @@ export default function CampusVotePage() {
   const { toast } = useToast();
 
   const [userCourse, setUserCourse] = useState<string | null>(null);
-  const [showCourseInput, setShowCourseInput] = useState(true); // Show course input initially
+  const [showCourseInput, setShowCourseInput] = useState(true);
   const [isLoadingCourseForm, setIsLoadingCourseForm] = useState(false);
 
   const [courseRankings, setCourseRankings] = useState<CourseRankings>({});
@@ -39,20 +165,21 @@ export default function CampusVotePage() {
   const [isLoadingCourseVote, setIsLoadingCourseVote] = useState(false);
   const [isLoadingUniversityVote, setIsLoadingUniversityVote] = useState(false);
 
-  // Load userCourse from cookie on mount
   useEffect(() => {
     const storedUserCourse = getAppCookie(USER_COURSE_STORAGE_KEY);
-    if (storedUserCourse) {
+    if (storedUserCourse && AVAILABLE_COURSES.includes(storedUserCourse)) { // Ensure stored course is valid
       setUserCourse(storedUserCourse);
       setShowCourseInput(false);
       setHasVotedForCourse(hasVotedCookie(`course_${normalizeName(storedUserCourse)}`));
     } else {
       setShowCourseInput(true);
+      if (storedUserCourse) { // Clear invalid cookie
+        setAppCookie(USER_COURSE_STORAGE_KEY, '', -1);
+      }
     }
     setHasVotedForUniversity(hasVotedCookie("university_overall"));
   }, []);
 
-  // Listener for University Rankings
   useEffect(() => {
     setIsLoadingUniversityRankings(true);
     const universityNomineesColRef = collection(firestore, "rankings", "university_overall", "nominees");
@@ -74,10 +201,9 @@ export default function CampusVotePage() {
     return () => unsubscribe();
   }, [toast]);
 
-  // Listener for Course-Specific Rankings
   useEffect(() => {
     if (!userCourse) {
-      setCourseRankings(prev => ({ ...prev, [userCourse || '']: [] })); // Clear specific course if userCourse is null
+      setCourseRankings(prev => ({ ...prev, [userCourse || '']: [] }));
       setIsLoadingCourseRankings(false);
       return;
     }
@@ -94,7 +220,7 @@ export default function CampusVotePage() {
       });
       setCourseRankings(prevRankings => ({
         ...prevRankings,
-        [userCourse]: rankings, // Store under the original (non-normalized) userCourse for display consistency
+        [userCourse]: rankings,
       }));
       setIsLoadingCourseRankings(false);
     }, (error) => {
@@ -109,15 +235,15 @@ export default function CampusVotePage() {
 
   const handleCourseSubmit = (courseName: string) => {
     setIsLoadingCourseForm(true);
-    const trimmedCourseName = courseName.trim();
-    setUserCourse(trimmedCourseName);
-    setAppCookie(USER_COURSE_STORAGE_KEY, trimmedCourseName);
+    // courseName is already from the dropdown, so it's valid
+    setUserCourse(courseName);
+    setAppCookie(USER_COURSE_STORAGE_KEY, courseName);
     setShowCourseInput(false);
-    setHasVotedForCourse(hasVotedCookie(`course_${normalizeName(trimmedCourseName)}`));
+    setHasVotedForCourse(hasVotedCookie(`course_${normalizeName(courseName)}`));
     setIsLoadingCourseForm(false);
     toast({
       title: "Course Saved!",
-      description: `Your course is set to ${trimmedCourseName}.`,
+      description: `Your course is set to ${courseName}.`,
     });
   };
   
@@ -126,7 +252,7 @@ export default function CampusVotePage() {
     categoryKey: string 
   ): Promise<void> => {
     const isCourseVote = categoryKey.startsWith("course_");
-    const currentCourseName = isCourseVote && userCourse ? userCourse : null; // Use the state's userCourse for original casing
+    const currentCourseName = isCourseVote && userCourse ? userCourse : null;
 
     if (isCourseVote) setIsLoadingCourseVote(true);
     else setIsLoadingUniversityVote(true);
@@ -139,14 +265,19 @@ export default function CampusVotePage() {
         return;
     }
 
-    let collectionPathSegments: string[];
+    let collectionPathSegments: [string, string, string];
+    let firestoreCategoryKey: string;
+
     if (isCourseVote && currentCourseName) {
-        collectionPathSegments = ["rankings", `course_${normalizeName(currentCourseName)}`, "nominees"];
+        firestoreCategoryKey = `course_${normalizeName(currentCourseName)}`;
+        collectionPathSegments = ["rankings", firestoreCategoryKey, "nominees"];
     } else {
-        collectionPathSegments = ["rankings", "university_overall", "nominees"];
+        firestoreCategoryKey = "university_overall";
+        collectionPathSegments = ["rankings", firestoreCategoryKey, "nominees"];
     }
-    
-    const nomineeDocRef = doc(firestore, ...collectionPathSegments, normalizedSubmittedName);
+
+    const nomineeCollectionRef = collection(firestore, ...collectionPathSegments);
+    const nomineeDocRef = doc(nomineeCollectionRef, normalizedSubmittedName);
 
     try {
       await runTransaction(firestore, async (transaction) => {
@@ -154,17 +285,16 @@ export default function CampusVotePage() {
         if (!nomineeDoc.exists()) {
           transaction.set(nomineeDocRef, { 
             name: normalizedSubmittedName, 
-            originalName: submittedName, // Store the first submitted version of the name
+            originalName: submittedName, 
             votes: 1 
           });
         } else {
           const currentVotes = nomineeDoc.data().votes || 0;
-          // originalName remains from the first vote
           transaction.update(nomineeDocRef, { votes: currentVotes + 1 });
         }
       });
 
-      const voteCookieKey = isCourseVote && currentCourseName ? `course_${normalizeName(currentCourseName)}` : "university_overall";
+      const voteCookieKey = firestoreCategoryKey; // Use the same key for cookies as for Firestore path
       setVotedCookie(voteCookieKey);
       if (isCourseVote) setHasVotedForCourse(true);
       else setHasVotedForUniversity(true);
@@ -195,7 +325,11 @@ export default function CampusVotePage() {
           <h1 className="text-3xl sm:text-4xl font-bold text-primary tracking-tight">Welcome to Rankings!</h1>
           <p className="text-muted-foreground mt-2 text-md">First, let's get your course information.</p>
         </header>
-        <CourseInputForm onSubmitCourse={handleCourseSubmit} isLoading={isLoadingCourseForm} />
+        <CourseInputForm 
+          onSubmitCourse={handleCourseSubmit} 
+          isLoading={isLoadingCourseForm}
+          courses={AVAILABLE_COURSES} // Pass the list of courses
+        />
          <footer className="mt-12 text-center text-sm text-muted-foreground">
           <p>&copy; {new Date().getFullYear()} Rankings. All rights reserved.</p>
            <p className="mt-2 px-4">
@@ -216,7 +350,7 @@ export default function CampusVotePage() {
          <button 
             onClick={() => {
               setShowCourseInput(true); 
-              setAppCookie(USER_COURSE_STORAGE_KEY, '', -1); // Clear course cookie
+              setAppCookie(USER_COURSE_STORAGE_KEY, '', -1); 
               setUserCourse(null);
             }} 
             className="mt-2 text-sm text-primary hover:underline"
@@ -233,7 +367,7 @@ export default function CampusVotePage() {
             icon={<GraduationCap className="h-8 w-8" />}
           >
             <NomineeInputForm
-              categoryKey={`course_${normalizeName(userCourse)}`} // Use normalized name for cookie key
+              categoryKey={`course_${normalizeName(userCourse)}`}
               categoryDisplayName={`${userCourse}`}
               onSubmitVote={submitVote}
               hasVoted={hasVotedForCourse}
@@ -260,7 +394,7 @@ export default function CampusVotePage() {
 
         <Scoreboard 
           userCourse={userCourse} 
-          courseRankings={courseRankings} // This will contain { [userCourse]: Nominee[] }
+          courseRankings={courseRankings}
           universityRankings={universityRankings}
           isLoadingCourseRankings={isLoadingCourseRankings}
           isLoadingUniversityRankings={isLoadingUniversityRankings} 
